@@ -199,16 +199,36 @@ Given below is the Sequence Diagram for interactions within the `Logic` componen
 .Interactions Inside the Logic Component for the `delete 1` Command
 image::DeletePersonSdForLogic.png[width="800"]
 
+// tag::Parser[]
+[[Design-Parser]]
+=== Parser component
+[[fig-ParserClassDiagram]]
+.Structure of the Parser Component
+image::ParserClassDiagram.png[width="800"]
+
+*API* :
+link:{repoURL}/src/main/java/seedu/address/logic/parser/ProManageParser.java[`ProManageParser.java`]
+
+. `ProManageParser` use children class of `CommandParser` (eg. ManagerParser) to parse the user command.
+.  When login/logout command is executed, the CommandParser object within ProManageParser is changed accordingly to DefaultParser,
+ManagerParser or EmployeeParser.
+.  DefaultParser, ManagerParser or EmployeeParser are subclass of the abstract class CommandParser
+.  This display the behaviour of polymorphism as ProManageParser will always pass the input into CommandParser
+but its behaviour depends on implementation of its subclass.
+.  Each of it subclass will only know commands that is according to the privilege level.
+// end::Parser[]
+
+
 // tag::Model[]
 [[Design-Model]]
 === Model component
 
 .Structure of the Model Component
-image::ModelClassDiagram.png[width="600"]
+image::ModelClassDiagram.png[width="620"]
+// end::Model[]
 
 *API* : link:{repoURL}/src/main/java/seedu/address/model/Model.java[`Model.java`]
 
-// end::Model[]
 The `Model`,
 
 * stores a `UserPref` object that represents the user's preferences.
@@ -227,6 +247,7 @@ image:ModelClassBetterOopDiagram.png[width="800"]
 
 .Structure of the Storage Component
 image::StorageClassDiagram.png[width="800"]
+// end::Storage[]
 
 *API* : link:{repoURL}/src/main/java/seedu/address/storage/Storage.java[`Storage.java`]
 
@@ -235,7 +256,6 @@ The `Storage` component,
 * can save `UserPref` objects in json format and read it back.
 * can save the Address Book and Event List data in xml format and read it back.
 
-// end::Storage[]
 [[Design-Commons]]
 === Common classes
 
@@ -283,44 +303,53 @@ image::SortSequenceDiagram.png[width="650"]
 ==== Current Implementation
 
 The `invite` command allows users to add attendees to an existing event, which is represented by an `Event` object.
-The command currently only allows users to add a single person to an event, based on the indices on the UI.
+The command currently only allows users to add a single person to an event at a time, based on the indices on the UI.
 This command adds the to-be-invited `Person` 's email, which is unique, to the chosen `Event`, so that the attendees of a particular event is recorded.
 
-The adding of attendees is facilitated by the class: `Attendees`, a list of emails of type `String`.
+The adding of attendees is facilitated by the class: `Attendees`, which consists of a list of emails of type `String`.
 
-image::EventClassDiagram.png[width="300"]
+.Class Diagram of Event and Attendee class
+image::EventAndAttendeeClassDiagram.png[width="800"]
 
 The following is a more detailed description of the `Attendee` class:
 
 *  `Attendees`
-** Each `Event` object has an `Attendees`, which is a list of the emails of the different `Person` attending the event.
+** Each `Event` object consist of an `Attendees` object, which is a list of the emails of the different `Person` attending the event.
 ** This class is a wrapper class around the internal representation of a `Set` of emails.
 ** Only the email of the `Person` is recorded in an `Event`, as the email should be unique and uneditable.
 
-Storing only the *email* of `Person` in the `Attendees` object of `Event` saves memory storage and facilitates the `select` feature. As we select a person, we can simply iterate through the event list and check whether the person's email is in the attendees list.
+Storing only the *email* of `Person` in the `Attendees` object of `Event` saves memory storage and facilitates the `select`, `viewmine` and `selectEvent` feature.
+As we select a person, we can simply iterate through the event list and check whether the person's email is in the attendees list.
+Similarly, as we select an event, we can first obtain the list of emails from the `Attendees`, and filter the employee list accordingly.
 
 This command only executes successfully if the event does not not clash with the person's schedule.
 
 Given below is an illustration to describe the detection of whether two events clash, which is facilitated by the method `hasClash` in `Event`:
 
-image::EventClashDiagram.png[width="400"]
+.Logic behind `Event#hasClash`
+image::EventClashDiagram.png[width="450"]
 
-The `Event#hasClash` is widely used in other features such as `addEvent` and `editEvent` to ensure that
+Thus, to check whether the event clashes with an employee's schedule, we iterate through the `ObservableList<Event>` and check whether the `Event` 1) contains the employee's email in the `Attendee` and 2) clashes with the selected event.
+
+****
+`Event#hasClash` is widely used in other features such as `addEvent` and `editEvent` to ensure that
 
 1. Different events are not held at the same location and time.
 
 2. An employee do not have two events he/she needs to attend at the same time.
+****
 
-Implementation of `RemoveCommand` is similar to `InviteCommand`, but removes persons from attendees of events instead.
+Implementation of `RemoveCommand` is similar to `InviteCommand`, but removes persons from `Attendees` of events instead.
 
 ==== Execution of Command
 
 Given below is an example usage scenario and how the invite mechanism works.
+
 For example, the user inputs `invite 1 to/1` to invite the 1st person in the address book to the 1st event in the event list.
 
 Step 1. The command text is passed to an instance of the `LogicManager` class.
 
-Step 2. The `LogicManager` instance calls `ProManageParser#parseCommand`, which parses the `invite` command phrase.
+Step 2. The `LogicManager` instance calls `ProManageParser#parseCommand`, which parses the invite command phrase.
 
 Step 3. `InviteCommandParser#parse` parses the person and event index. An instance of the `InviteCommand` encapsulating the two indices information is then returned after parsing.
 
@@ -349,7 +378,7 @@ image::InviteSequenceDiagram.png[width="700"]
 
 * **Alternative 1 (current choice):** Saves only the emails of the Persons in the Attendees of Events.
 ** Pros: Saves space. Able to filter EventList easily.
-** Cons: Requires going through the entire list of AddressBook to obtain details of persons attending the particular event.
+** Cons: Requires going through the entire list of EventList to obtain details of events attended by the person.
 
 * **Alternative 2:** Saves the entire information of Events for each Persons.
 ** Pros: Fast access to information of Events attended by any Persons.
@@ -379,6 +408,8 @@ One possible way to to implement this is to have the user
 The same concept can also be applied to events, being able to invite one person to multiple events with one single command.
 
 Implementation of this additional feature would require changes to both `InviteCommandParser` and `InviteCommand#execute`. Additionally, handling of clashing events needs to be considered as it now involves more than one participant and event.
+
+Similar improvements can be made to `remove` command, being able to remove a person from a number of events with one single command.
 // end::Invite[]
 
 // tag::Select[]
@@ -422,6 +453,24 @@ image::SelectSequenceDiagram.png[width="700"]
 
 // end::Select[]
 
+// tag::FindEvent[]
+=== Find Event feature
+
+==== Current Implementation
+The `findEvent` allows the user to search for an event using some keywords. It searches for such events which contain at least
+one of keywords in their names or description.
+
+
+==== Execution of Command
+Given below is an example usage scenario and how the `findEvent` mechanism works.
+
+Step 1. The user inputs `findEvent meeting` to find the event containing the word meeting in its name or description.
+
+Step 2. The command is parsed and the result is shown.
+
+
+// end::FindEvent[]
+
 // tag::List[]
 === List Feature
 
@@ -450,7 +499,7 @@ Given below is an example usage scenario and how the list mechanism works.
 Step 1. The user executes `list dep Admin` to list only the people in the Admin department. The command text is passed
 to an instance of the `LogicManager` class.
 
-Step 2. The `LogicManager` instance calls `AddressBookParser#parsecommand`, which parses the `list` command prefix
+Step 2. The `LogicManager` instance calls `ProManage#parsecommand`, which parses the `list` command prefix
 "list".
 
 Step 3. `ListCommandParser#parse` parses the type of command that is called upon and if applicable, the departments
@@ -483,6 +532,146 @@ it can list out the upcoming birthdays of the personnel in the company.
 
 * Implement date of birth attribute and display current date and time the moment the application is launched. List out upcoming birthdays - `list birthdays`
 // end::List[]
+
+// tag::UndoRedo[]
+=== Undo/Redo Feature
+
+==== Current Implementation
+
+The `undo` and `redo` feature allows users to undo and redo their previous commands. The commands that can
+be undone are only those that modify the contents of the address book or event list, such as adding a person
+or event within the app. This is managed within `ModelManager`.
+
+The undo/redo mechanism is implemented separately for the address book and event list by the
+`VersionedAddressBook` and `VersionedEventList`. They are extensions of the superclass `AddressBook` and
+`EventList` respectively with a history of states stored internally as an `addressBookStateList`
+for the address book, `eventListStateList` for the event list, and a `currentStatePointer` in each of them.
+To ensure that the address book and event list are undone/redone correctly, a `StateHistoryList` (sub-class
+of `LinkedList`) is kept in the `ModelManager` to keep track of the list that was modified.
+
+The following operations were implemented:
+
+* `VersionedAddressBook#commit()` — Saves the current address book state in its internal history.
+
+* `VersionedAddressBook#undo()` — Restores the previous address book state from its internal history.
+
+* `VersionedAddressBook#redo()` — Restores a previously undone address book state from its internal history.
+
+* `VersionedEventList#commit()` — Saves the current event list in its internal history.
+
+* `VersionedEventList#undo()` — Restores the previous event list state from its internal history.
+
+* `VersionedEventList#redo()` — Restores a previously undone event list state from its internal history.
+
+These operations are exposed in the Model interface as `Model#commitAddressBook()`, `Model#undoAddressBook()`
+and `Model#redoAddressBook()` for the address book, and `Model#commitEventList()`, `Model#undoEventList()`
+and `Model#redoEventList()` for the event list. Two wrapper methods, `Model#undo()` and `Model#redo()`
+are also implemented. These will be the methods called by the commands `undo` and `redo`.
+
+The `StateHistoryList` implements the following operations for the `Model` to decide whether to
+undo/redo the address book or event list:
+
+* `StateHistoryList#getCurrentState()` - Retrieves the latest record state.
+
+* `StateHistoryList#getNextState()` - Retrieves the next (previously undone) record state.
+
+* `StateHistoryList#decrementPointer()` - Shifts record state pointer back. Called during `undo`.
+
+* `StateHistoryList#incrementPointer()` - Shifts record state pointer forward. Called during `redo`.
+
+A command can either modify the address book, event list, or both. Within the model, the `StateHistoryList`
+keeps track of all model methods which modify the address book or event list, and stores a history
+record value within itself for each method called.
+
+When undoing a command, the `ModelManager` requests for the latest record by `StateHistoryList#getCurrentState()`
+and calls the corresponding `VersionedAddressBook#undo()` and/or `VersionedEventList#undo()`. The ModelManager
+also informs the `StateHistoryList` that an undo command was issued to shift the pointer back.
+
+When redoing a command,the `ModelManager` requests for the next record from `StateHistoryList` and
+calls the corresponding `VersionedAddressBook#redo()` and/or `VersionedEventList#redo()`. The ModelManager
+also informs the `StateHistoryList` that an undo command was issued to shift the pointer forward.
+
+Given below is an example usage scenario and how the undo/redo mechanism behaves at each step.
+
+Step 1. The user launches the application for the first time. The VersionedAddressBook and VersionedEventList
+will be initialized with the initial address book and event list states, and the currentStatePointers will
+point to their single state respectively. The StateHistoryList is instantiated as an empty list.
+
+image::UndoRedoModelInitializationStateListDiagram.png[width="800"]
+
+Step 2. The user executes `add` (with valid input arguments) to add a person to the address book. The `add` command calls
+`Model#addPerson()`, which will add a state record index integer `STATE_ADDRESSBOOK` to the `StateHistoryList`.
+This command is the last entered command, therefore the `pointer` in `StateHistoryList` shifts forward.
+The `add` command also calls `Model#commitAddressBook()`, causing the modified state of the address book after
+the `add` command executes to be saved in the `addressBookStateList`, and the address book `currentStatePointer`
+is shifted to the newly inserted address book state. The `currentStatePointer` for `VersionedEventList` remains unchanged
+as only the `VersionedAddressBook` was modified..
+
+image::UndoRedoNewCommandAB1StateListDiagram.png[width="800"]
+
+[NOTE]
+If a command fails its execution, it will not call `Model#commitAddressBook()` or `Model#commitEventList()`,
+so the address book or event list state will not be saved into `addressBookStateList` or `eventListStateList`.
+The `StateHistoryList` will also not save a record state.
+
+Step 3. The user realises that they have accidentally added the wrong person, and decides to undo the action by
+executing the `undo` command. The `undo` command calls `Model#undo()`, which gets the latest record state
+from `StateHistoryList` and recognises that the `VersionedAddressBook` was modified in the previous command.
+The `Model#undoAddressBook()` is then called, which shift the currentStatePointer once to the left, pointing it to
+the previous address book state, and restores the address book to that state. Also, the `pointer` in `StateHistoryList`
+is shifted to the left by `StateHistoryList#decrementPointer`.
+
+image::UndoRedoNewCommandAB2StateListDiagram.png[width="800"]
+
+[NOTE]
+If the `currentStatePointer` is at index 0, pointing to the initial address book state, then there are no previous
+address book states to restore. The undo command uses `Model#canUndo()` to check if this is the case.
+If so, it will return an error to the user rather than attempting to perform the undo. +
+
+The following sequence diagram shows how the undo operation works:
+
+image::UndoRedoSequenceDiagram.png[width="800"]
+
+Step 4.
+The redo command does the opposite — it calls `Model#redo()`, which shifts the `currentStatePointer` in either
+the `VersionedAddressBook` and/or `VersionedEventList` once to the right, pointing to the previously
+undone state, and restores it to that state.
+
+[NOTE]
+If the `pointer` is at index `stateHistoryList.size() - 1`, pointing to the latest memory state, then
+there are no undone states to restore. The redo command uses `Model#canRedo()` to check if this is the case.
+If so, it will return an error to the user rather than attempting to perform the redo.
+
+image::UndoRedoNewCommandAB3StateListDiagram.png[width="800"]
+
+Step 5.
+The user then decides to add a new event to the event list, by the `addEvent` command. The `addEvent` command calls
+`Model#addEvent()`, which will add a state record index integer `STATE_EVENTLIST` to the `StateHistoryList`.
+This command is the last entered command, therefore the `pointer` in `StateHistoryList` shifts forward.
+The `addEvent` command also calls `Model#commitEventList()`, causing the modified state of the event list after
+the `addEvent` command executes to be saved in the `eventListStateList`, and the event list `currentStatePointer`
+is shifted to the newly inserted address book state. The `currentStatePointer` for `VersionedAddressBook` remains unchanged
+as only the `VersionedEventList` was modified.
+
+image::UndoRedoNewCommandELStateListDiagram.png[width="800"]
+
+Step 6.
+The user then decides to execute `clear`. Since this command must clear both the address book and event list,
+the `clear` command calls both `Model#commitAddressBook()` and `Model#commitEventList()`. It adds a state
+record index integer `STATE_BOTH` to the `StateHistoryList`. The `currentStatePointer` in both
+`VersionedAddressBook` and `VersionedEventList` shifts to point to the newly added states respectively.
+
+image::UndoRedoNewCommandBothStateListDiagram.png[width="800"]
+
+==== Future Improvements
+
+===== Façade Class for VersionedAddressBook and VersionedEventList
+
+To improve abstraction and shift the responsibility of deciding which list to undo or redo away from the
+`Model`, a façade class can be created, e.g. `VersionedProManage`, to hold the `StateHistoryList`,
+`VersionedAddressBook` and `VersionedEventList`. The model will then only have to call the `VersionedProManage#undo()`
+or `VersionedProManage#redo()` methods.
+// end::UndoRedo[]
 
 === Logging
 
@@ -782,8 +971,13 @@ relevant people
 |`* * *` |Project Manager |View events related to myself| To avoid looking through the entire event list to find out which events I
 need to attend
 
-|`* * *` |User |Exit command |
+|=======================================================================
 // end::userstories[]
+[width="125%",cols="22%,<23%,<25%,<30%",options="header",]
+|=======================================================================
+|Priority |As a ... |I want to ... |So that I can...
+|`* * *` |User |Exit command |
+
 |`* * *` |New Employee |See usage instructions |Refer to instructions when I forget how to use the ProManage
 
 |`* * *` |Employee |Find a person by name |Locate details of people without having to go through the entire list
@@ -812,7 +1006,7 @@ _{More to be added}_
 
 [appendix]
 
-// tag::usecases[]
+
 == Use Cases
 
 (For all use cases below, the *System* is the `ProManage` and the *Actor* is the `user`, unless specified otherwise)
@@ -893,7 +1087,8 @@ Use case ends.
 ** 3a1. ProManage shows an error message.
 +
 Use case resumes at step 2.
-// end::usecases[]
+
+// tag::usecases[]
 [discrete]
 === Use case: Add Event
 
@@ -917,7 +1112,7 @@ Use case ends.
 ** 3a1. ProManage shows an error message.
 +
 Use case resumes at step 2.
-
+// end::usecases[]
 [discrete]
 === Use case: Delete event
 
@@ -1114,7 +1309,41 @@ Use case ends.
 ** 3b1. ProManage shows an error message.
 ** Use case ends
 
+// tag::usecases_undo[]
+=== Use case: Undo the previously entered command.
+*MSS*
 
+1.  User requests to undo previous command
+2.  ProManage undos the command, restoring the previous state.
+
++
+Use case ends.
+
+*Extensions*
+
+* 1a. No commands left to undo.
+** 1a1. ProManage shows an error message.
+** Use case ends
++
+// end::usecases_undo[]
+
+// tag::usecases_redo[]
+=== Use case: Redo the previously undone command.
+*MSS*
+
+1.  User requests to redo the previously undone command
+2.  ProManage redos the command, restoring the address book or event list state.
+
++
+Use case ends.
+
+*Extensions*
+
+* 1a. No previously undone commands available.
+** 1a1. ProManage shows an error message.
+** Use case ends
++
+// end::usecases_undo[]
 
 // tag::nonfunctionalrequirements[]
 == Non Functional Requirements
@@ -1179,6 +1408,29 @@ These instructions only provide a starting point for testers to work on; testers
 
 _{ more test cases ... }_
 
+=== Logging into the app
+. Logging without email
+
+.. Prerequisites: App is not login yet. Privilege is default
+
+.. Test Case: `login manager` +
+   Expected: login successfully as manager
+
+.. Test Case: `login employee` +
+   Expected: login successfully as manager
+
+.. Other incorrect login commands to try: `login`,`login ceo` (login without email only accepts manager and employee)
+
+. Logging with email
+
+.. Prerequisites: App is not login yet. Privilege is default. Email of an existing person in addressbook
+
+
+.. Test Case: `login as lol@example.com` +
+   Expected: login successfully as the designation of the person
+
+.. Other incorrect login commands to try: `login as` `login as invalidemail`
+
 === Deleting a person
 
 . Deleting a person while all persons are listed
@@ -1192,9 +1444,9 @@ _{ more test cases ... }_
 .. Other incorrect delete commands to try: `delete`, `delete x` (where x is larger than the list size) _{give more}_ +
    Expected: Similar to previous.
 
-=== Inviting a person
+=== Inviting a person to an event
 
-. Inviting a person while all persons are listed
+. Inviting a person while all persons and events are listed
 
 .. Prerequisites: List all persons using the `list all` command. Multiple persons and events in the list.
 .. Test case: `invite 1 to/1` +
@@ -1203,12 +1455,12 @@ _{ more test cases ... }_
    Expected: Error message as employee is already invited to event.
 .. Test case: `invite 0 to/1` +
    Expected: No employee is invited. Error details shown in the status message.
-.. Other incorrect invite commands to try: `invite`, `invite x to/1` (where x is larger than the list size) +
-   Expected: Similar to previous.
+.. Other incorrect invite commands to try: `invite`, `invite x to/1` (where x is larger than the person list size), `invite 1 to/y` (where y is larger than the event list size) +
+   Expected: Error message.
 
-=== Removing a person
+=== Removing a person from an event
 
-. Inviting a person while all persons are listed
+. Removing a person while all persons and events are listed
 
 .. Prerequisites: List all persons using the `list all` command. Multiple persons and events in the list.
 .. Test case: `invite 1 to/1` then `remove 1 from/1`+
@@ -1217,8 +1469,8 @@ _{ more test cases ... }_
    Expected: Error message as employee is currently not invited to event.
 .. Test case: `delete 0 to/1` +
    Expected: No employee is removed. Error details shown in the status message.
-.. Other incorrect invite commands to try: `remove`, `remove x to/1` (where x is larger than the list size) +
-   Expected: Similar to previous.
+.. Other incorrect invite commands to try: `remove`, `remove x to/1` (where x is larger than the person list size), `remove 1 to/y` (where y is larger than the event list size) +
+   Expected: Similar to error message.
 
 
 === Listing people and events
@@ -1246,6 +1498,39 @@ and `add n/Mark p/93455678 e/mark@example.com a/Mark street, block 12, #05-01 de
 
 .. Test case: `list dep Admin Finance` or any DEPARTMENT -> `list all`
    Expected: The details of all personnel and events will be listed.
+
+=== Selecting an Event
+
+. Selecting event while all events are listed
+
+.. Prerequisites: List all persons using the `list all` command. There must be at least one person and one event in the list.
+
+.. Test case: `invite 1 to/1` then `selectEvent 1` +
+   Expected: First event in the list is highlighted. Employee list is filtered to only show the first person.
+
+.. Test case: `selectEvent 2` (continued from test case above) +
+   Expected: Second event in the list is highlighted. Employee list is empty.
+
+.. Test case: `selectEvent 0` +
+   Expected: Error thrown.
+
+.. Other incorrect selectEvent commands to try: `selectevent` (command is case-sensitive),
+   `selectEvent a`, `selectEvent x` (where x is larger than the event list shown).
+
+=== Sorting of events
+. Sorting of the event list based on the given params
+
+.. Prerequisites: No prerequisites
+
+.. Test case: `sort name` +
+   Expected: Event list to be sorted according their name.
+
+.. Test case: `sort date` +
+   Expected: Event list to be sorted according to the date from the earliest to the latest
+
+.. Other incorrect sort command to try: `sort` , `sort random`
+
+_{ more test cases ... }_
 
 
 
